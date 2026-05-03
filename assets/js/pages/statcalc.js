@@ -26,7 +26,9 @@ function buildStatCalcPage() {
   function calcAll() {
     if (!cur.num || !BASE_STATS[cur.num]) return null;
     var bases = BASE_STATS[cur.num];
-    return bases.map(function(b,i){ return calcStat(b, cur.ivs[i], cur.evs[i], cur.lvl, i, cur.nat); });
+    var stats = bases.map(function(b,i){ return calcStat(b, cur.ivs[i], cur.evs[i], cur.lvl, i, cur.nat); });
+    if (cur.num === 292) stats[0] = 1; // Shedinja: HP is always 1
+    return stats;
   }
 
   function totalEV() { return cur.evs.reduce(function(a,b){return a+b;},0); }
