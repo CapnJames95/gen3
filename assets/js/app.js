@@ -10476,28 +10476,35 @@ function calcUpdate() {
   if (isPhys && calcIsActive('def-reflect')) screen = 0.5;
   if (!isPhys && calcIsActive('def-lightscreen')) screen = 0.5;
 
-  // Apply effective defense stat with sandstorm
-  var effDefStat = Math.floor(defStat / sandBoost);
+  // Gen 3 CalculateBaseDamage order (from pret/pokeemerald src/pokemon.c):
+  //   1) attack stat with badge / hold-item / ability boosts (we approximate via ×1.1 badge here)
+  //   2) damage = attack * power * (2L/5 + 2) / defense / 50
+  //   3) burn halves if physical
+  //   4) Reflect/Light Screen halves (only if not crit)
+  //   5) weather (×1.5 or ×0.5) — sand SpDef boost is applied as defense ×1.5
+  //   6) Flash Fire boost (×1.5 to fire moves)
+  //   7) + 2
+  // After base: crit ×2 (Gen 3 partial-stage-mod handling we ignore here),
+  // then STAB ×1.5, Type1 × Type2, then random 217–255/255.
 
-  // Apply effective attack stat with burn
-  var effAtkStat = Math.floor(atkStat * burn);
+  var effAtkStat = Math.floor(atkStat * badge); // badge boost applied to attack
+  var effDefStat = Math.floor(defStat * sandBoost); // sand: rock SpDef ×1.5
 
-  // Core damage (before random and badge)
   var baseDmg = Math.floor(Math.floor(Math.floor(2 * atkLevel / 5 + 2) * movePower * effAtkStat / effDefStat) / 50);
-
-  // Apply modifiers in Gen 3 order
-  baseDmg = Math.floor(baseDmg * stab);
-  baseDmg = Math.floor(baseDmg * typeMultiplier);
+  if (burn < 1) baseDmg = Math.floor(baseDmg * burn);     // burn (physical only)
+  if (screen < 1 && crit === 1) baseDmg = Math.floor(baseDmg * screen); // screens negated by crit
   baseDmg = Math.floor(baseDmg * weatherMod);
   baseDmg = Math.floor(baseDmg * ffMod);
-  baseDmg = Math.floor(baseDmg * crit);
-  baseDmg = baseDmg + 2;  // Gen 3 adds 2 at the end before random
-  baseDmg = Math.floor(baseDmg * badge);
-  baseDmg = Math.floor(baseDmg * screen);
+  baseDmg = baseDmg + 2;
+
+  // Crit, STAB, type — applied after +2
+  var afterCrit = Math.floor(baseDmg * crit);
+  var afterStab = Math.floor(afterCrit * stab);
+  var afterType = Math.floor(afterStab * typeMultiplier);
 
   // Random roll: 0.85–1.00 (Gen 3 uses 217–255/255)
-  var dmgMin = Math.floor(baseDmg * 217 / 255);
-  var dmgMax = baseDmg; // 255/255 = 1.0
+  var dmgMin = typeMultiplier === 0 ? 0 : Math.floor(afterType * 217 / 255);
+  var dmgMax = afterType; // 255/255 = 1.0
 
   // HP of defender
   var defHP = calcState.def
@@ -17433,9 +17440,9 @@ function buildCatchCalcPage() {
     { name:'Safari Ball',  slug:'safari-ball',  master:false, bonus: function(cr,turn,wildLvl){ return 1.5; }, note:'Safari Zone only' },
     { name:'Net Ball',     slug:'net-ball',     master:false, bonus: function(cr,turn,wildLvl){ return 3; },   note:'Water/Bug types ×3, else ×1' },
     { name:'Dive Ball',    slug:'dive-ball',    master:false, bonus: function(cr,turn,wildLvl){ return 3.5; }, note:'While Surfing/Diving' },
-    { name:'Nest Ball',    slug:'nest-ball',    master:false, bonus: function(cr,turn,wildLvl){ return Math.max(1, Math.floor((41 - Math.min(30, wildLvl)) * 100 / 10) / 100); }, note:'Better at low levels' },
+    { name:'Nest Ball',    slug:'nest-ball',    master:false, bonus: function(cr,turn,wildLvl){ var m = 40 - wildLvl; if (wildLvl >= 40 || m <= 9) m = 10; return m / 10; }, note:'Better at low levels' },
     { name:'Repeat Ball',  slug:'repeat-ball',  master:false, bonus: function(cr,turn,wildLvl){ return 3; },   note:'If already caught species' },
-    { name:'Timer Ball',   slug:'timer-ball',   master:false, bonus: function(cr,turn,wildLvl){ return Math.min(4, 1 + Math.floor(turn * 1229 / 4096)); }, note:'Better with more turns' },
+    { name:'Timer Ball',   slug:'timer-ball',   master:false, bonus: function(cr,turn,wildLvl){ return Math.min(40, turn + 10) / 10; }, note:'Better with more turns' },
     { name:'Premier Ball', slug:'premier-ball', master:false, bonus: function(cr,turn,wildLvl){ return 1; },   note:'Same as Poké Ball' },
     { name:'Luxury Ball',  slug:'luxury-ball',  master:false, bonus: function(cr,turn,wildLvl){ return 1; },   note:'Raises friendship faster' },
   ];
@@ -17518,9 +17525,9 @@ function buildCatchCalcPage() {
     '<div style="font-size:10px;color:var(--muted);line-height:1.8;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px 14px;">',
     '<strong style="color:var(--text)">Gen 3 Catch Formula:</strong> ',
     'a = ((3×MaxHP − 2×CurrentHP) × CatchRate × BallBonus × StatusBonus) ÷ (3×MaxHP). ',
-    'Shake threshold b = floor(65536 ÷ (255÷a)^0.1875). P(catch) = (b÷65536)^4.<br>',
+    'If a ≥ 255: guaranteed catch. Otherwise b = floor(1048560 ÷ ⁴√(16711680 ÷ a)). P(catch) = (b÷65536)⁴.<br>',
     'Status: Sleep/Freeze = ×2 &nbsp;|&nbsp; Paralysis/Burn/Poison = ×1.5 &nbsp;|&nbsp; None = ×1. '
-    + 'Nest Ball bonus = max(1, floor((41 − min(wildLvl, 30)) ÷ 10)).',
+    + 'Nest Ball bonus = (40 − level)÷10, min 1.0 at level ≥ 31. Timer Ball bonus = min(4, (turns+10)÷10).',
     '</div>'
   ].join('');
 
@@ -17528,9 +17535,15 @@ function buildCatchCalcPage() {
   window._ccCatchRate = 0;
 
   function calcProb(cr, hpFactor, statusMult, bonus) {
+    // Gen 3 catch formula (pret/pokeemerald src/battle_script_commands.c):
+    //   a = ((3*HPmax − 2*HP) × CatchRate × BallBonus) / (3*HPmax) × StatusBonus
+    //   if a > 254: guaranteed catch
+    //   else: b = floor(1048560 / sqrt(sqrt(16711680 / a)))
+    //         P = (b / 65536)^4
     var a = Math.floor(hpFactor * cr * bonus * statusMult);
-    a = Math.max(1, Math.min(255, a));
-    var b = Math.floor(65536 / Math.pow(255 / a, 0.1875));
+    if (a >= 255) return 100;
+    if (a < 1) a = 1;
+    var b = Math.floor(1048560 / Math.pow(16711680 / a, 0.25));
     return Math.pow(b / 65536, 4) * 100;
   }
 
