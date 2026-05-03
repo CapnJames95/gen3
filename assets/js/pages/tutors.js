@@ -3,12 +3,12 @@ function buildTutorPage() {
     'Body Slam':'Normal','Double-Edge':'Normal','Counter':'Fighting','Seismic Toss':'Fighting',
     'Mimic':'Normal','Metronome':'Normal','Substitute':'Normal','Swords Dance':'Normal',
     'Thunder Wave':'Electric','Explosion':'Normal','Dream Eater':'Psychic','Rock Slide':'Rock',
-    'Mega Kick':'Normal','Mega Punch':'Normal','Softboiled':'Normal','Ice Beam':'Ice',
-    'Bubble Beam':'Water','Flash':'Normal','ThunderPunch':'Electric','Fire Punch':'Fire',
+    'Mega Kick':'Normal','Mega Punch':'Normal','Soft-Boiled':'Normal',
+    'ThunderPunch':'Electric','Fire Punch':'Fire',
     'Ice Punch':'Ice','Blast Burn':'Fire','Hydro Cannon':'Water','Frenzy Plant':'Grass',
     'Defense Curl':'Normal','Swagger':'Normal','Sleep Talk':'Normal','Snore':'Normal',
     'Swift':'Normal','Mud-Slap':'Ground','Psych Up':'Normal','Fury Cutter':'Bug',
-    'Endure':'Normal','Rollout':'Rock','Dynamic Punch':'Fighting','Frustration':'Normal'
+    'Endure':'Normal','Rollout':'Rock','DynamicPunch':'Fighting','Icy Wind':'Ice'
   };
   var allMoves = {};
   for (var i = 0; i < FRLG_TUTOR_LIST.length; i++) {
